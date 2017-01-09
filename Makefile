@@ -2,7 +2,7 @@
 
 OBJS = build/main.o \
        build/record.o \
-			 build/sorted.o
+       build/sorted.o
 
 BIN = build/sorted.out
 
