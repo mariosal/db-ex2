@@ -72,7 +72,7 @@ int Sorted_OpenFile(char * filename){
         return -1;
 
 
-    return 0;
+    return fd;
 
 
 }
