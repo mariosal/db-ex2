@@ -44,7 +44,10 @@ int Sorted_CreateFile(char * filename ){
         return -1;
     }
 
-
+    if(BF_CloseFile(fd)<0){
+        BF_PrintError("cannot close file\n");
+        return -1;
+    }
     return 0; 
  
 }
