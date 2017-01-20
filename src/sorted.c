@@ -1,6 +1,7 @@
 #include "../include/sorted.h"
 #include "../include/BF.h"
 #include <stdio.h>
+#include <string.h>
 
 int max_records_in_block(void){
     /* epistrefei to megisto plithos egrafwn se ena block wste na sigrinw ton arithmo twn egrafwn tou block me to megisto kai na kserw     an xwrane alles egrafes se afto to block*/
@@ -40,6 +41,8 @@ int Sorted_CreateFile(char * filename ){
         BF_PrintError("cannot write block 0 in bf file\n");
         return -1;
     }
+    
+       
 
     if(BF_CloseFile(fd)<0){
         BF_PrintError("cannot close file\n");
@@ -66,6 +69,10 @@ int Sorted_OpenFile(char * filename){
     
     memcpy((int*)&is_sort_file,block,sizeof(int));
     
+    if (BF_WriteBlock(fd,0)<0){
+        BF_PrintError("cannot write to block 0\n");
+        return -1;
+    }
     if(is_sort_file != 1) 
         return -1;
 
@@ -90,13 +97,15 @@ int Sorted_CloseFile(int fileDesc){
 
 
 
-int Sorted_IsertEntry(int fileDesc,Record record){
+int Sorted_InsertEntry(int fileDesc,Record record){
     int num_of_records_in_block;
     int blocks_num;
     int tail;
     void * block_ptr;
     int offset;
     blocks_num = BF_GetBlockCounter(fileDesc);
+    
+    
     
     if(blocks_num < 0 ){
         BF_PrintError("cannot get block counter\n");
@@ -112,11 +121,13 @@ int Sorted_IsertEntry(int fileDesc,Record record){
         /* an iparxei 1 block tote afto einai to block 0 opote prepei na dimiourgithei neo block gia tis eggrafes*/
         
         if(BF_AllocateBlock(fileDesc) <0 ){
-            BF_PrintError("cannot allocate block\n)"
+            BF_PrintError("cannot allocate block\n");
             return -1;            
         }
 
         tail = BF_GetBlockCounter(fileDesc);
+
+        
         
         if(tail <0){
             BF_PrintError("cannot get block counter\n");
@@ -125,24 +136,25 @@ int Sorted_IsertEntry(int fileDesc,Record record){
         
         tail--; // o arithmos tou teleutaiou block einai ta block-1 
         
+
         if(BF_ReadBlock(fileDesc,0,&block_ptr)<0){
-            BF_PrintError("cannot read block \n");
+            BF_PrintError("cannot read block 0 to set tail \n");
             return -1;   
         }
 
         /* set new tail at block 0  -> |is_sort_file|tail|*/
-
-        memcpy(block+sizeof(int),(int *)&tail,sizeof(int));
+       
+        memcpy(block_ptr+sizeof(int),(int *)&tail,sizeof(int));
 
         if(BF_WriteBlock(fileDesc,0) < 0){
-            BF_PrintError("cannot write to block 0\n");
+            BF_PrintError("cannot write to block 0 the new tail block\n");
             return -1;
         }
         
         /* go to tail block and insert record -> num_of_records|record|record.. */
 
         if(BF_ReadBlock(fileDesc,tail,&block_ptr)<0){
-            BF_PrintError("cannot get block counter\n");
+            BF_PrintError("cannot read tail block that was just allocated \n");
             return -1;   
         }
 
@@ -154,7 +166,7 @@ int Sorted_IsertEntry(int fileDesc,Record record){
 
         /* and now isert the record in block*/
 
-        memcpy(block_ptr+sizeof(int),(record *)&record,sizeof(record);
+        memcpy(block_ptr+sizeof(int),(Record *)&record,sizeof(record));
 
         /* write changes to block*/
 
@@ -171,6 +183,8 @@ int Sorted_IsertEntry(int fileDesc,Record record){
     /* alliws an iparxoun block diavase apo to block 0 pio einai to tail kai dokimase se afto na valeis tin eggrafi
      *  an den iparxei xwros sto tail block desmeuse ena kainourgio kai enimerwse ton dixti tail tou block 0 */
         
+        
+        
         if(BF_ReadBlock(fileDesc,0,&block_ptr)<0){
             BF_PrintError("cannot read block 0\n");
             return -1;   
@@ -178,28 +192,32 @@ int Sorted_IsertEntry(int fileDesc,Record record){
         
         // enimerwsi tou tail apo to block 0
         
-        memcpy((int *)tail,block_ptr+sizeof(int),sizeof(int) );
+        memset((int *)&tail,0,sizeof(int));
+        
+        memcpy((int *)&tail,block_ptr+sizeof(int),sizeof(int) );
         
         
         //pigaine sto tail block
         
         if(BF_ReadBlock(fileDesc,tail,&block_ptr)<0){
             BF_PrintError("cannot read block tail\n");
+            
             return -1;   
         }
 
         /* elenxe an to tail block einai gemato me eggrafes */
-
-        memcpy((int *)num_of_records_in_block, block_ptr, sizeof(int );
+        
+        memset((int *)&num_of_records_in_block,0,sizeof(int));
+        memcpy((int *)&num_of_records_in_block, block_ptr, sizeof(int ));
 
         if(num_of_records_in_block == max_records_in_block()){
             
-            if( (tail=BF_AllocateBlock(fileDesc) ) < 0 ){
+            if( BF_AllocateBlock(fileDesc)  < 0 ){
                 BF_PrintError("cannot allocate block\n");
                 return -1;
             }           
             /* enimerwsi tou tail sto block 0*/
-            tail--;                 //teleutaio block einai ta block -1
+            tail = BF_GetBlockCounter(fileDesc)-1;                 //teleutaio block einai ta block -1
             
             if(BF_ReadBlock(fileDesc,0,&block_ptr)<0){
                 BF_PrintError("cannot read block 0\n");
@@ -223,7 +241,7 @@ int Sorted_IsertEntry(int fileDesc,Record record){
             
             memcpy(block_ptr,(int*)&num_of_records_in_block,sizeof(int));
 
-            memcpy(block_ptr+sizeof(int),(Record*)&record),sizeof(record));
+            memcpy(block_ptr+sizeof(int),(Record*)&record,sizeof(record));
 
             if(BF_WriteBlock(fileDesc,tail) <0){
                 BF_PrintError("cannot write block\n");
@@ -235,17 +253,19 @@ int Sorted_IsertEntry(int fileDesc,Record record){
         }
         
         else if (num_of_records_in_block < max_records_in_block() ){
-               
+            
+                  
+            
             offset = sizeof(int) + num_of_records_in_block * sizeof(Record);
             num_of_records_in_block++;
             
             //enimerwsi tou num_of_records
-            memcpy(block,(int*)&num_of_records_in_block,sizeof(int));
+            memcpy(block_ptr,(int*)&num_of_records_in_block,sizeof(int));
             
             // eisagwgi tis eggrafis sto katallilo simeio    
-            memcpy(block+offset,(Record *)&record,sizeof(record));
+            memcpy(block_ptr+offset,(Record *)&record,sizeof(record));
             
-            if(BF_WriteBlock(fieldNo,tail)<0){
+            if(BF_WriteBlock(fileDesc,tail)<0){
                 BF_PrintError("cannot write to tail block\n");
                 return -1;
             }
@@ -264,8 +284,28 @@ int Sorted_IsertEntry(int fileDesc,Record record){
 }
 
 
-void Sorted_Sort_File(char * fileName, int fieldNo){
+void Sorted_Sort_File(char * filename, int fieldNo){
+    int fd;
+    void * bf1,*bf2,*bw;
+    int fd1,fd2,fdw;
+    char file1[20],file2[20],filew[20];
+    int heaptail;
+    int current_block_of_heapfile;
     
+    if( (fd=BF_OpenFile(filename))<0 ){
+        BF_PrintError("cannot open file\n");
+        return ;
+    }
+    
+    if(BF_ReadBlock(fd,0,&bf1)<0){
+        BF_PrintError("cannot read block");
+        return;
+    }    
+    
+    //last block of heapfile
+    memcpy((int*)&heaptail,bf1+sizeof(int),sizeof(int));
+    
+    /* kathe fora pairneis ta 2 prwta arxeia tis ouras ta kaneis merge kai to outfile to vazeis sto telos tis ouras mexri na exeis mono 1 arxeio stin oura diladi to taksinomimeno*/
 
 }
 
