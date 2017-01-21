@@ -36,7 +36,7 @@ build/queue.o : src/queue.c include/queue.h
 build/record.o : src/record.c include/record.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-build/sorted.o : src/sorted.c include/sorted.h include/record.h include/BF.h
+build/sorted.o : src/sorted.c include/sorted.h include/record.h include/BF.h include/queue.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 $(BIN) : $(OBJS)
