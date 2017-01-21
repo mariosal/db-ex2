@@ -18,7 +18,7 @@ static void Sorted_SetHeap(void* zero, bool heap) {
   memcpy(zero, &heap, sizeof(heap));
 }
 
-static bool Sorted_Heap(void* zero) {
+static bool Sorted_Heap(const void* zero) {
   return ((const struct Sorted_Info*)zero)->heap;
 }
 
@@ -27,7 +27,7 @@ static void Sorted_SetNumEntries(void* zero, int num_entries) {
   memcpy(zero, &num_entries, sizeof(num_entries));
 }
 
-static int Sorted_NumEntries(void* zero) {
+static int Sorted_NumEntries(const void* zero) {
   return ((const struct Sorted_Info*)zero)->num_entries;
 }
 
