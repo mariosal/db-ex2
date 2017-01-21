@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  char sorted_filename[128];
+  char sorted_filename[512];
   snprintf(sorted_filename, sizeof(sorted_filename), "%sSorted%d", filename,
            fieldno);
   if (Sorted_checkSortedFile(sorted_filename, 0) < 0) {
