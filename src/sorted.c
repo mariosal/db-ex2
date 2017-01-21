@@ -1,6 +1,7 @@
 #include "sorted.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include "BF.h"
 
@@ -32,8 +33,15 @@ static int Sorted_NumEntries(const void* zero) {
 }
 
 static void Sorted_SetEntry(void* block, int offset, const struct Record* record) {
-  block = (char*)block + sizeof(struct Record) * offset;
-  memcpy(block, record, sizeof(struct Record));
+  block = (unsigned char*)block + sizeof(*record) * offset;
+  memcpy(block, record, sizeof(*record));
+}
+
+static struct Record* Sorted_Entry(const void* block, int offset) {
+  struct Record* record = malloc(sizeof(*record));
+  block = (const unsigned char*)block + sizeof(*record) * offset;
+  memcpy(record, block, sizeof(*record));
+  return record;
 }
 
 int Sorted_CreateFile(const char* filename) {

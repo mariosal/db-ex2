@@ -14,12 +14,12 @@ struct Queue {
 };
 
 void Queue_Init(struct Queue** q) {
-  *q = malloc(sizeof(struct Queue));
+  *q = malloc(sizeof(**q));
   if (*q == NULL) {
     exit(EXIT_FAILURE);
   }
   (*q)->len = 0;
-  (*q)->front = (*q)->back = malloc(sizeof(struct QueueNode));
+  (*q)->front = (*q)->back = malloc(sizeof(*(*q)->back));
   (*q)->front->next = NULL;
 }
 
@@ -53,7 +53,7 @@ void Queue_Pop(struct Queue* q, char* value) {
 }
 
 void Queue_Push(struct Queue* q, const char* value) {
-  q->back->next = malloc(sizeof(struct QueueNode));
+  q->back->next = malloc(sizeof(*q->back->next));
   if (q->back->next == NULL) {
     exit(EXIT_FAILURE);
   }
