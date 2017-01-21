@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include "BF.h"
 #include "size_types.h"
 #include "sorted.h"
@@ -47,13 +48,14 @@ static void* ArgValue(int argc, char** argv, int fieldno) {
 
 static void InsertEntries(int fd, const char* filename) {
   struct Record record;
+  memset(&record, 0, sizeof(record));
   char fmt[64];
   snprintf(fmt, sizeof(fmt), "%%d,\"%%%" PRIuS "[^\"]\",\"%%%" PRIuS "[^\"]\","
            "\"%%%" PRIuS "[^\"]\"", sizeof(record.name) - 1,
            sizeof(record.surname) - 1, sizeof(record.city) - 1);
   while (scanf(fmt, &record.id, record.name, record.surname,
                record.city) == 4) {
-    if (Sorted_InsertEntry(fd, record) == -1) {
+    if (Sorted_InsertEntry(fd, record) < 0) {
       fprintf(stderr, "Error inserting {%d, %s, %s, %s} into file %s\n",
               record.id, record.name, record.surname, record.city, filename);
       exit(EXIT_FAILURE);
@@ -78,20 +80,20 @@ int main(int argc, char** argv) {
   }
   void* value = ArgValue(argc, argv, fieldno);
 
-  if (Sorted_CreateFile(filename) == -1) {
+  if (Sorted_CreateFile(filename) < 0) {
     fprintf(stderr, "Error creating file %s\n", filename);
     return EXIT_FAILURE;
   }
 
   int fd = Sorted_OpenFile(filename);
-  if (fd == -1) {
+  if (fd < 0) {
     fprintf(stderr, "Error opening file %s\n", filename);
     return EXIT_FAILURE;
   }
 
   InsertEntries(fd, filename);
 
-  if (Sorted_SortFile(filename, fieldno) == -1) {
+  if (Sorted_SortFile(filename, fieldno) < 0) {
     fprintf(stderr, "Error sorting file %s by fieldno %d\n", filename, fieldno);
     return EXIT_FAILURE;
   }
@@ -99,19 +101,19 @@ int main(int argc, char** argv) {
   char sorted_filename[128];
   snprintf(sorted_filename, sizeof(sorted_filename), "%sSorted%d", filename,
            fieldno);
-  if (Sorted_checkSortedFile(sorted_filename, 0) == -1) {
+  if (Sorted_checkSortedFile(sorted_filename, 0) < 0) {
     printf("File %s is not sorted by fieldno %d\n", sorted_filename, fieldno);
   } else {
     printf("File %s is sorted by fieldno %d\n", sorted_filename, fieldno);
   }
 
-  if (Sorted_CloseFile(fd) == -1) {
+  if (Sorted_CloseFile(fd) < 0) {
     fprintf(stderr, "Error closing file %s\n", filename);
     return EXIT_FAILURE;
   }
 
   fd = Sorted_OpenFile(sorted_filename);
-  if (fd == -1) {
+  if (fd < 0) {
     fprintf(stderr, "Error opening file %s\n", sorted_filename);
     return EXIT_FAILURE;
   }
@@ -119,7 +121,7 @@ int main(int argc, char** argv) {
   Sorted_GetAllEntries(fd, &fieldno, value);
   free(value);
 
-  if (Sorted_CloseFile(fd) == -1) {
+  if (Sorted_CloseFile(fd) < 0) {
     fprintf(stderr, "Error closing file %s\n", sorted_filename);
     return EXIT_FAILURE;
   }
