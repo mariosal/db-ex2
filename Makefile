@@ -1,6 +1,7 @@
 # Exercise configuration
 
 OBJS = build/main.o \
+       build/queue.o \
        build/record.o \
        build/sorted.o
 
@@ -27,6 +28,9 @@ clean :
 # Exercise builds
 
 build/main.o : src/main.c include/BF.h include/sorted.h include/record.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+build/queue.o : src/queue.c include/queue.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 build/record.o : src/record.c include/record.h
