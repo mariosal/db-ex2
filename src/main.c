@@ -93,6 +93,11 @@ int main(int argc, char** argv) {
 
   InsertEntries(fd, filename);
 
+  if (Sorted_CloseFile(fd) < 0) {
+    fprintf(stderr, "Error closing file %s\n", filename);
+    return EXIT_FAILURE;
+  }
+
   if (Sorted_SortFile(filename, fieldno) < 0) {
     fprintf(stderr, "Error sorting file %s by fieldno %d\n", filename, fieldno);
     return EXIT_FAILURE;
@@ -105,11 +110,6 @@ int main(int argc, char** argv) {
     printf("File %s is not sorted by fieldno %d\n", sorted_filename, fieldno);
   } else {
     printf("File %s is sorted by fieldno %d\n", sorted_filename, fieldno);
-  }
-
-  if (Sorted_CloseFile(fd) < 0) {
-    fprintf(stderr, "Error closing file %s\n", filename);
-    return EXIT_FAILURE;
   }
 
   fd = Sorted_OpenFile(sorted_filename);
