@@ -1,8 +1,8 @@
 #include <ctype.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include "BF.h"
+#include "size_types.h"
 #include "sorted.h"
 
 static bool Equals(const char* a, const char* b) {
@@ -18,28 +18,111 @@ static bool Equals(const char* a, const char* b) {
   return false;
 }
 
+static void* ArgValue(int argc, char** argv, int fieldno) {
+  void* value = NULL;
+  for (int i = 1; i < argc; ++i) {
+    if (Equals(argv[i], "value")) {
+      ++i;
+      char fmt[8];
+      size_t size = 1;
+      if (fieldno == 0) {
+        size = sizeof(int);
+        snprintf(fmt, sizeof(fmt), "%%d");
+      } else {
+        if (fieldno == 1) {
+          size = sizeof(((struct Record*)NULL)->name);
+        } else if (fieldno == 2) {
+          size = sizeof(((struct Record*)NULL)->surname);
+        } else if (fieldno == 3) {
+          size = sizeof(((struct Record*)NULL)->city);
+        }
+        snprintf(fmt, sizeof(fmt), "%%%" PRIuS "s", size - 1);
+      }
+      value = malloc(size);
+      sscanf(argv[i], fmt, value);
+    }
+  }
+  return value;
+}
+
+static void InsertEntries(int fd, const char* filename) {
+  struct Record record;
+  char fmt[64];
+  snprintf(fmt, sizeof(fmt), "%%d,\"%%%" PRIuS "[^\"]\",\"%%%" PRIuS "[^\"]\","
+           "\"%%%" PRIuS "[^\"]\"", sizeof(record.name) - 1,
+           sizeof(record.surname) - 1, sizeof(record.city) - 1);
+  while (scanf(fmt, &record.id, record.name, record.surname,
+               record.city) == 4) {
+    if (Sorted_InsertEntry(fd, record) == -1) {
+      fprintf(stderr, "Error inserting {%d, %s, %s, %s} into file %s\n",
+              record.id, record.name, record.surname, record.city, filename);
+      exit(EXIT_FAILURE);
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   BF_Init();
 
-  int field_num = 0;
-  bool create = true;
+  int fieldno = 0;
+  char filename[512];
+  snprintf(filename, sizeof(filename), "build/heap_file");
   for (int i = 1; i < argc; ++i) {
-    if (Equals(argv[i], "f") || Equals(argv[i], "field") ||
-        Equals(argv[i], "fieldno")) {
+    if (Equals(argv[i], "fieldno")) {
       ++i;
-      sscanf(argv[i], "%d", &field_num);
-    } else if (Equals(argv[i], "nc") || Equals(argv[i], "nocreate")) {
-      create = false;
+      sscanf(argv[i], "%d", &fieldno);
+    } else if (Equals(argv[i], "filename")) {
+      ++i;
+      sscanf(argv[i], "%s", filename);
     }
   }
+  void* value = ArgValue(argc, argv, fieldno);
 
-  if (create) {
+  if (Sorted_CreateFile(filename) == -1) {
+    fprintf(stderr, "Error creating file %s\n", filename);
+    return EXIT_FAILURE;
   }
 
-  struct Record record;
-  memset(&record, 0, sizeof(struct Record));
-  while (scanf("%d,\"%14[^\"]\",\"%19[^\"]\",\"%24[^\"]\"", &record.id,
-      record.name, record.surname, record.city) == 4) {
+  int fd = Sorted_OpenFile(filename);
+  if (fd == -1) {
+    fprintf(stderr, "Error opening file %s\n", filename);
+    return EXIT_FAILURE;
   }
-  return 0;
+
+  InsertEntries(fd, filename);
+
+  if (Sorted_SortFile(filename, fieldno) == -1) {
+    fprintf(stderr, "Error sorting file %s by fieldno %d\n", filename, fieldno);
+    return EXIT_FAILURE;
+  }
+
+  char sorted_filename[128];
+  snprintf(sorted_filename, sizeof(sorted_filename), "%sSorted%d", filename,
+           fieldno);
+  if (Sorted_checkSortedFile(sorted_filename, 0) == -1) {
+    printf("File %s is not sorted by fieldno %d\n", sorted_filename, fieldno);
+  } else {
+    printf("File %s is sorted by fieldno %d\n", sorted_filename, fieldno);
+  }
+
+  if (Sorted_CloseFile(fd) == -1) {
+    fprintf(stderr, "Error closing file %s\n", filename);
+    return EXIT_FAILURE;
+  }
+
+  fd = Sorted_OpenFile(sorted_filename);
+  if (fd == -1) {
+    fprintf(stderr, "Error opening file %s\n", sorted_filename);
+    return EXIT_FAILURE;
+  }
+
+  Sorted_GetAllEntries(fd, &fieldno, value);
+  free(value);
+
+  if (Sorted_CloseFile(fd) == -1) {
+    fprintf(stderr, "Error closing file %s\n", sorted_filename);
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
 }
