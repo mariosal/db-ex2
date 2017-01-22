@@ -23,7 +23,7 @@ make
 ./build/sorted.out -value 11903588 < etc/dataset/10000.csv
 ./build/sorted.out -fieldno 1 < etc/dataset/10000.csv
 ./build/sorted.out -fieldno 3 -value Piraeus < etc/dataset/10000.csv
-./build/sorted.out -filename build/heap_file -fieldno 4 -value Piraeus < etc/dataset/10000.csv
+./build/sorted.out -filename build/heap_file -fieldno 3 -value Piraeus < etc/dataset/10000.csv
 ```
 
 ## Cleaning
