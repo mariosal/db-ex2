@@ -27,6 +27,12 @@ static int Min(int a, int b) {
 
 static int Compare(const struct Record* a, const struct Record* b,
                    int fieldno) {
+  if (a == NULL) {
+    return 1;
+  }
+  if (b == NULL) {
+    return -1;
+  }
   switch (fieldno) {
     case 0: {
       return a->id - b->id;
@@ -40,8 +46,10 @@ static int Compare(const struct Record* a, const struct Record* b,
     case 3: {
       return strcmp(a->city, b->city);
     }
+    default: {
+      return 0;
+    }
   }
-  return 0;
 }
 
 static void Quicksort(struct Record* a, int len, int fieldno) {
@@ -49,15 +57,15 @@ static void Quicksort(struct Record* a, int len, int fieldno) {
     return;
   }
 
-  const struct Record* pivot = &a[len / 2];
+  struct Record pivot = a[len / 2];
 
   int i, j;
   for (i = 0, j = len - 1; ; ++i, --j) {
-    while (Compare(&a[i], pivot, fieldno) < 0) {
-      i++;
+    while (Compare(&a[i], &pivot, fieldno) < 0) {
+      ++i;
     }
-    while (Compare(&a[j], pivot, fieldno) > 0) {
-      j--;
+    while (Compare(&a[j], &pivot, fieldno) > 0) {
+      --j;
     }
     if (i >= j) {
       break;
@@ -93,15 +101,31 @@ static int Sorted_NumEntries(const void* zero) {
   return ((const struct Sorted_Info*)zero)->num_entries;
 }
 
-static void Sorted_SetEntry(void* block, int offset,
-                            const struct Record* record) {
-  block = (unsigned char*)block + sizeof(*record) * offset;
+static int Sorted_SetEntry(int fd, int offset, const struct Record* record) {
+  void* block;
+  int block_id = Ceil(offset + 1, Sorted_MaxEntries());
+  if (BF_ReadBlock(fd, block_id, &block) < 0) {
+    BF_PrintError("Error reading block");
+    return -1;
+  }
+
+  int block_offset = offset - (block_id - 1) * Sorted_MaxEntries();
+  block = (unsigned char*)block + sizeof(*record) * block_offset;
   memcpy(block, record, sizeof(*record));
+  return block_id;
 }
 
-static struct Record* Sorted_Entry(const void* block, int offset) {
+static struct Record* Sorted_Entry(int fd, int offset) {
+  void* block;
+  int block_id = Ceil(offset + 1, Sorted_MaxEntries());
+  if (BF_ReadBlock(fd, block_id, &block) < 0) {
+    BF_PrintError("Error reading block");
+    return NULL;
+  }
+
   struct Record* record = malloc(sizeof(*record));
-  block = (const unsigned char*)block + sizeof(*record) * offset;
+  int block_offset = offset - (block_id - 1) * Sorted_MaxEntries();
+  block = (unsigned char*)block + sizeof(*record) * block_offset;
   memcpy(record, block, sizeof(*record));
   return record;
 }
@@ -123,11 +147,11 @@ static int Sorted_Split(int fd_orig, int fieldno, struct Queue* q) {
     }
 
     tmpnam(buf);
-    Queue_Push(q, buf);
-
     if (Sorted_CreateFile(buf) < 0) {
       return -1;
     }
+    Queue_Push(q, buf);
+
     int fd_new = Sorted_OpenFile(buf);
     if (fd_new < 0) {
       return -1;
@@ -179,7 +203,110 @@ static int Sorted_Split(int fd_orig, int fieldno, struct Queue* q) {
   return 0;
 }
 
-static int Sorted_Merge(const char* buf1, const char* buf2, struct Queue* q) {
+static int Sorted_Merge(const char* f1, const char* f2, int fieldno,
+                        struct Queue* q) {
+  int fd1 = Sorted_OpenFile(f1);
+  if (fd1 < 0) {
+    return -1;
+  }
+  int fd2 = Sorted_OpenFile(f2);
+  if (fd2 < 0) {
+    return -1;
+  }
+
+  char buf[L_tmpnam];
+  tmpnam(buf);
+  if (Sorted_CreateFile(buf) < 0) {
+    return -1;
+  }
+  Queue_Push(q, buf);
+
+  int fd3 = Sorted_OpenFile(buf);
+  if (fd3 < 0) {
+    return -1;
+  }
+
+  void* zero1;
+  if (BF_ReadBlock(fd1, 0, &zero1) < 0) {
+    BF_PrintError("Error reading block");
+    return -1;
+  }
+  void* zero2;
+  if (BF_ReadBlock(fd2, 0, &zero2) < 0) {
+    BF_PrintError("Error reading block");
+    return -1;
+  }
+  void* zero3;
+  if (BF_ReadBlock(fd3, 0, &zero3) < 0) {
+    BF_PrintError("Error reading block");
+    return -1;
+  }
+
+  int max1 = Sorted_NumEntries(zero1);
+  int max2 = Sorted_NumEntries(zero2);
+  Sorted_SetNumEntries(zero3, max1 + max2);
+  if (BF_WriteBlock(fd3, 0) < 0) {
+    BF_PrintError("Error writing block");
+    return -1;
+  }
+
+  int i = 0;
+  int j = 0;
+  for (int k = 0; k < max1 + max2; ++k) {
+    if (k % Sorted_MaxEntries() == 0 && BF_AllocateBlock(fd3) < 0) {
+      BF_PrintError("Error allocating block");
+      return -1;
+    }
+
+    struct Record* left = NULL;
+    if (i < max1) {
+      left = Sorted_Entry(fd1, i);
+      if (left == NULL) {
+        return -1;
+      }
+    }
+    struct Record* right = NULL;
+    if (j < max2) {
+      right = Sorted_Entry(fd2, j);
+      if (right == NULL) {
+        return -1;
+      }
+    }
+
+    int block_id;
+    if (i < max1 && Compare(left, right, fieldno) <= 0) {
+      if (left == NULL) {
+        return -1;
+      }
+      block_id = Sorted_SetEntry(fd3, k, left);
+      ++i;
+    } else {
+      if (right == NULL) {
+        return -1;
+      }
+      block_id = Sorted_SetEntry(fd3, k, right);
+      ++j;
+    }
+    if (block_id < 0) {
+      return -1;
+    }
+    if (BF_WriteBlock(fd3, block_id) < 0) {
+      BF_PrintError("Error writing block");
+      return -1;
+    }
+    free(left);
+    free(right);
+  }
+
+  if (Sorted_CloseFile(fd1) < 0) {
+    return -1;
+  }
+  if (Sorted_CloseFile(fd2) < 0) {
+    return -1;
+  }
+  if (Sorted_CloseFile(fd3) < 0) {
+    return -1;
+  }
   return 0;
 }
 
@@ -223,6 +350,7 @@ static int Sorted_Move(const char* f1, const char* f2) {
   if (Sorted_CloseFile(fd1) < 0) {
     return -1;
   }
+  remove(f1);
   if (Sorted_CloseFile(fd2) < 0) {
     return -1;
   }
@@ -311,16 +439,11 @@ int Sorted_InsertEntry(int fd, struct Record record) {
     }
   }
 
-  void* back;
-  int back_id = BF_GetBlockCounter(fd) - 1;
-  if (BF_ReadBlock(fd, back_id, &back) < 0) {
-    BF_PrintError("Error reading block");
+  int block_id = Sorted_SetEntry(fd, Sorted_NumEntries(zero), &record);
+  if (block_id < 0) {
     return -1;
   }
-
-  int offset = Sorted_NumEntries(zero) - (back_id - 1) * Sorted_MaxEntries();
-  Sorted_SetEntry(back, offset, &record);
-  if (BF_WriteBlock(fd, back_id) < 0) {
+  if (BF_WriteBlock(fd, block_id) < 0) {
     BF_PrintError("Error writing block");
     return -1;
   }
@@ -361,9 +484,11 @@ int Sorted_SortFile(const char* filename, int fieldno) {
   while (Queue_Len(q) > 1) {
     Queue_Pop(q, buf1);
     Queue_Pop(q, buf2);
-    if (Sorted_Merge(buf1, buf2, q) < 0) {
+    if (Sorted_Merge(buf1, buf2, fieldno, q) < 0) {
       return -1;
     }
+    remove(buf1);
+    remove(buf2);
   }
 
   Queue_Pop(q, buf1);
@@ -379,7 +504,33 @@ int Sorted_SortFile(const char* filename, int fieldno) {
 }
 
 int Sorted_checkSortedFile(const char* filename, int fieldno) {
-  return 0;
+  int fd = Sorted_OpenFile(filename);
+  if (fd < 0) {
+    return -1;
+  }
+  void* zero;
+  if (BF_ReadBlock(fd, 0, &zero) < 0) {
+    BF_PrintError("Error reading block");
+    return -1;
+  }
+
+  int ret = 0;
+  for (int i = 0; i < Sorted_NumEntries(zero) - 1; ++i) {
+    struct Record* cur = Sorted_Entry(fd, i);
+    struct Record* next = Sorted_Entry(fd, i + 1);
+    if (Compare(cur, next, fieldno) > 0) {
+      free(cur);
+      free(next);
+      ret = -1;
+      break;
+    }
+    free(cur);
+    free(next);
+  }
+  if (Sorted_CloseFile(fd) < 0) {
+    return -1;
+  }
+  return ret;
 }
 
 void Sorted_GetAllEntries(int fd, const int* fieldno, const void* value) {
