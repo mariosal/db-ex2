@@ -19,8 +19,7 @@ void Queue_Init(struct Queue** q) {
     exit(EXIT_FAILURE);
   }
   (*q)->len = 0;
-  (*q)->front = (*q)->back = malloc(sizeof(*(*q)->back));
-  (*q)->front->next = NULL;
+  (*q)->front = (*q)->back = NULL;
 }
 
 void Queue_Reset(struct Queue** q) {
@@ -45,20 +44,28 @@ void Queue_Pop(struct Queue* q, char* value) {
     value = NULL;
     return;
   }
-  snprintf(value, sizeof(q->front->next->value), "%s", q->front->next->value);
-  struct QueueNode* tmp = q->front->next->next;
-  free(q->front->next);
-  q->front->next = tmp;
+  snprintf(value, sizeof(q->front->value), "%s", q->front->value);
+  struct QueueNode* tmp = q->front;
+  q->front = q->front->next;
+  if (q->front == NULL) {
+    q->back = NULL;
+  }
+  free(tmp);
   --q->len;
 }
 
 void Queue_Push(struct Queue* q, const char* value) {
-  q->back->next = malloc(sizeof(*q->back->next));
-  if (q->back->next == NULL) {
+  struct QueueNode* tmp = malloc(sizeof(*tmp));
+  if (tmp == NULL) {
     exit(EXIT_FAILURE);
   }
-  q->back = q->back->next;
-  snprintf(q->back->value, sizeof(q->back->value), "%s", value);
-  q->back->next = NULL;
+  snprintf(tmp->value, sizeof(tmp->value), "%s", value);
+  tmp->next = NULL;
+  if (q->front == NULL) {
+    q->front = tmp;
+  } else {
+    q->back->next = tmp;
+  }
+  q->back = tmp;
   ++q->len;
 }
