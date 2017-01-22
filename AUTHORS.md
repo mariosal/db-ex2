@@ -1,0 +1,2 @@
+- Mario Saldinger <mariosaldinger@gmail.com> <sdi1400177@di.uoa.gr>
+- Nikolaos Iosifidis <iosifidisnick1@gmail.com> <sdi1400051@di.uoa.gr>
