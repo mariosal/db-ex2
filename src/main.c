@@ -25,7 +25,7 @@ static void* ArgValue(int argc, char** argv, int fieldno) {
     if (Equals(argv[i], "value")) {
       ++i;
       char fmt[8];
-      size_t size = 1;
+      size_t size = 0;
       if (fieldno == 0) {
         size = sizeof(int);
         snprintf(fmt, sizeof(fmt), "%%d");
@@ -40,6 +40,9 @@ static void* ArgValue(int argc, char** argv, int fieldno) {
         snprintf(fmt, sizeof(fmt), "%%%" PRIuS "s", size - 1);
       }
       value = malloc(size);
+      if (value == NULL) {
+        exit(EXIT_FAILURE);
+      }
       sscanf(argv[i], fmt, value);
     }
   }
@@ -73,6 +76,9 @@ int main(int argc, char** argv) {
     if (Equals(argv[i], "fieldno")) {
       ++i;
       sscanf(argv[i], "%d", &fieldno);
+      if (fieldno < 0 || 3 < fieldno) {
+        fieldno = 0;
+      }
     } else if (Equals(argv[i], "filename")) {
       ++i;
       sscanf(argv[i], "%s", filename);
@@ -106,7 +112,7 @@ int main(int argc, char** argv) {
   char sorted_filename[512];
   snprintf(sorted_filename, sizeof(sorted_filename), "%sSorted%d", filename,
            fieldno);
-  if (Sorted_checkSortedFile(sorted_filename, 0) < 0) {
+  if (Sorted_checkSortedFile(sorted_filename, fieldno) < 0) {
     printf("File %s is not sorted by fieldno %d\n", sorted_filename, fieldno);
   } else {
     printf("File %s is sorted by fieldno %d\n", sorted_filename, fieldno);
