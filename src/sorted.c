@@ -52,7 +52,8 @@ static int Compare(const struct Record* a, const struct Record* b,
   }
 }
 
-static int CompareValue(const struct Record* a, const void* value, int fieldno) {
+static int CompareValue(const struct Record* a, const void* value,
+                        int fieldno) {
   if (a == NULL) {
     return 1;
   }
