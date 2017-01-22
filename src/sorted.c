@@ -52,13 +52,38 @@ static int Compare(const struct Record* a, const struct Record* b,
   }
 }
 
+static int CompareValue(const struct Record* a, const void* value, int fieldno) {
+  if (a == NULL) {
+    return 1;
+  }
+  if (value == NULL) {
+    return -1;
+  }
+  switch (fieldno) {
+    case 0: {
+      return a->id - *(const int*)value;
+    }
+    case 1: {
+      return strcmp(a->name, value);
+    }
+    case 2: {
+      return strcmp(a->surname, value);
+    }
+    case 3: {
+      return strcmp(a->city, value);
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
 static void Quicksort(struct Record* a, int len, int fieldno) {
   if (len <= 1) {
     return;
   }
 
   struct Record pivot = a[len / 2];
-
   int i, j;
   for (i = 0, j = len - 1; ; ++i, --j) {
     while (Compare(&a[i], &pivot, fieldno) < 0) {
@@ -124,6 +149,9 @@ static struct Record* Sorted_Entry(int fd, int offset) {
   }
 
   struct Record* record = malloc(sizeof(*record));
+  if (record == NULL) {
+    exit(EXIT_FAILURE);
+  }
   int block_offset = offset - (block_id - 1) * Sorted_MaxEntries();
   block = (unsigned char*)block + sizeof(*record) * block_offset;
   memcpy(record, block, sizeof(*record));
@@ -179,6 +207,9 @@ static int Sorted_Split(int fd_orig, int fieldno, struct Queue* q) {
       return -1;
     }
     struct Record* entries = malloc(sizeof(*entries) * num_entries_new);
+    if (entries == NULL) {
+      exit(EXIT_FAILURE);
+    }
     for (int j = 0; j < num_entries_new; ++j) {
       memcpy(&entries[j], block_orig, sizeof(*entries));
       block_orig = (unsigned char*)block_orig + sizeof(*entries);
@@ -542,4 +573,57 @@ int Sorted_checkSortedFile(const char* filename, int fieldno) {
 }
 
 void Sorted_GetAllEntries(int fd, const int* fieldno, const void* value) {
+  void* zero;
+  if (BF_ReadBlock(fd, 0, &zero) < 0) {
+    BF_PrintError("Error reading block");
+    return;
+  }
+  int num_entries = Sorted_NumEntries(zero);
+
+  if (value == NULL) {
+    for (int i = 0; i < num_entries; ++i) {
+      struct Record* cur = Sorted_Entry(fd, i);
+      RecordPrint(cur, stdout);
+      free(cur);
+    }
+    printf("Read %d blocks\n", 1 + Ceil(num_entries, Sorted_MaxEntries()));
+  } else {
+    bool* read_blocks = malloc(sizeof(*read_blocks) * BF_GetBlockCounter(fd));
+    if (read_blocks == NULL) {
+      exit(EXIT_FAILURE);
+    }
+    memset(read_blocks, 0, sizeof(*read_blocks) * BF_GetBlockCounter(fd));
+    read_blocks[0] = true;
+
+    int lo = 0;
+    int hi = num_entries - 1;
+    while (lo < hi) {
+      int mi = lo + (hi - lo) / 2;
+      struct Record* r = Sorted_Entry(fd, mi);
+      read_blocks[Ceil(mi + 1, Sorted_MaxEntries())] = true;
+      if (CompareValue(r, value, *fieldno) >= 0) {
+        hi = mi;
+      } else {
+        lo = mi + 1;
+      }
+      free(r);
+    }
+    for (; lo < num_entries; ++lo) {
+      struct Record* r = Sorted_Entry(fd, lo);
+      read_blocks[Ceil(lo + 1, Sorted_MaxEntries())] = true;
+      if (CompareValue(r, value, *fieldno) != 0) {
+        free(r);
+        break;
+      }
+      RecordPrint(r, stdout);
+      free(r);
+    }
+
+    int num_blocks = 0;
+    for (int i = 0; i < BF_GetBlockCounter(fd); ++i) {
+      num_blocks += read_blocks[i];
+    }
+    free(read_blocks);
+    printf("Read %d blocks\n", num_blocks);
+  }
 }
