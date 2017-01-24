@@ -31,7 +31,7 @@
 extern int BF_Errno;
 
 // Kathorizei to mege8os enos block apo to arxeio
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 1024
 
 // Arxikopoiei tin eswterikh plhroforia tin opoia krataei to epipedo block arxeiwn (BF)
 void BF_Init(void);
